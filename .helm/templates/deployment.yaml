@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bearpass-chart.fullname" . }}
+  labels:
+    {{- include "bearpass-chart.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "bearpass-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "bearpass-chart.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "bearpass-chart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.env.BEARPASS_PORT }}
+              protocol: TCP
+            - name: https
+              containerPort: {{ .Values.env.BEARPASS_SSL_PORT }}
+              protocol: TCP
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bearpass-chart.fullname" . }}-secrets
+                  key: database-password
+            - name: BEARPASS_FULL_URL
+              value: {{ .Values.env.BEARPASS_FULL_URL | quote }}
+            - name: BEARPASS_PORT
+              value: {{ .Values.env.BEARPASS_PORT | quote }}
+            - name: BEARPASS_SSL_PORT
+              value: {{ .Values.env.BEARPASS_SSL_PORT | quote }}
+            - name: USER_ID
+              value: {{ .Values.env.USER_ID | quote }}
+            - name: GROUP_ID
+              value: {{ .Values.env.GROUP_ID | quote }}
+            - name: S3_ENDPOINT
+              value: {{ .Values.env.S3_ENDPOINT | quote }}
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bearpass-chart.fullname" . }}-secrets
+                  key: s3-access-key
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bearpass-chart.fullname" . }}-secrets
+                  key: s3-secret-key
+            - name: S3_BUCKET_NAME
+              value: {{ .Values.env.S3_BUCKET_NAME | quote }}
+            - name: DB_CONNECTION
+              value: {{ .Values.env.DB_CONNECTION | quote }}
+            - name: DB_HOST
+              value: {{ .Values.env.DB_HOST | quote }}
+            - name: DB_PORT
+              value: {{ .Values.env.DB_PORT | quote }}
+            - name: DB_DATABASE
+              value: {{ .Values.env.DB_DATABASE | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.env.DB_USERNAME | quote }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
